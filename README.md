@@ -1,6 +1,11 @@
 # Mini React SSR
 实现一个简易版的React SSR
 
+src
+  - client（客户端渲染相关）
+  - server（服务端渲染相关）
+  - share（通用的）
+
 ## 1) 服务端渲染
 主要就是用到了react-dom的renderToString方法，把一个组件渲染成jsx,然后插进html里面，服务端就可以直接返回这个html。
 
@@ -56,3 +61,82 @@ app.get('/', (req, res) => {
 
 ## 3) 代码重构
 提取出一个renderer函授，专门用来创建html
+
+## 4) 服务端路由
+在React SSR 项目中需要实现两端路由:
+- 客户端路由是用于支持用户通过点击链接的形式跳转页面
+- 服务器端路由是用于支持用户直接从浏览器地址栏中访问页面
+- 客户端和服务器端公用一套路由规则,所以路由规则放在share/里面
+
+服务端路由首先是在server里面，不管拿到什么路径req.path，统一交给renderer处理，
+```ts
+// src/server/index.js
+app.get('*', (req, res) => {
+  res.send(renderer(req));
+});
+```
+
+renderer用到了两个helper `renderRoutes` 和`StaticRouter`实现,拿到path以后把path传进StaticRouter里面，渲染出对应的界面。renderRoutes则是把路由配置渲染成react element形式，才能直接用。
+
+```tsx
+import { renderRoutes } from 'react-router-config';
+import { StaticRouter } from 'react-router-dom';
+import routes from '../share/routes';
+
+const renderer = req => {
+  const Routes = renderRoutes(routes);    // 把routes配置转换成组件element形式
+  const content = renderToString(
+    <StaticRouter
+      location={ req.path }
+    >
+      { Routes }
+    </StaticRouter>
+  );
+
+  return `
+    <html>
+      <head>
+        <title>React SSR</title>
+      </head>
+      <body>
+        <div id="root">${content}</div>
+        <script src="client.bundle.js"></script>
+      </body>
+    </html>
+  `
+};
+```
+
+**注意**
+Routes是组件element形式，而不是一个class或者函数，它编译过后就是vdom了：
+```ts
+{
+  '$$typeof': Symbol(react.element),
+  type: [Function: Switch] {
+    propTypes: { children: [Function], location: [Function] }
+  },
+  key: null,
+  ref: null,
+  props: { children: [ [Object], [Object] ] },
+  _owner: null,
+  _store: {}
+}
+```
+其实就跟`const Test = (<div></div>)`的类型是一样的。而不是`const Test () => (<div></div>);`
+
+所以调用的时候是直接当然element放进jsx里面,这样**不会调用**组件的创建函数 (它本身就是jsx element，已经是调用创建函数render()的结果了)
+```tsx
+<StaticRouter>
+  { Routes }
+</StaticRouter>
+```
+
+而不是这样（这是函数或者class组件的调用形式），**会调用**组件的创建函数 
+```tsx
+<StaticRouter>
+  <Routes />
+</StaticRouter>
+```
+
+**注意2**
+这个时候访问/list会发现list page一闪而过，又回到了home。因为我们还没处理客户端注水，之前的注水渲染了home，所以会跳回去。

@@ -1,9 +1,18 @@
 import React from 'react';
-import Home from '../share/pages/Home';
 import { renderToString } from 'react-dom/server';
+import { renderRoutes } from 'react-router-config';
+import { StaticRouter } from 'react-router-dom';
+import routes from '../share/routes';
 
-const renderer = () => {
-  const content = renderToString(<Home />);
+const renderer = req => {
+  const Routes = renderRoutes(routes);    // 把routes配置转换成组件element形式
+  const content = renderToString(
+    <StaticRouter
+      location={ req.path }
+    >
+      { Routes }
+    </StaticRouter>
+  );
 
   return `
     <html>
