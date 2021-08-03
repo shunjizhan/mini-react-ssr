@@ -4,6 +4,7 @@ import { renderRoutes } from 'react-router-config';
 import { StaticRouter } from 'react-router-dom';
 import routes from '../share/routes';
 import { Provider } from 'react-redux';
+import serialize from 'serialize-javascript';
 
 const renderer = (req, store) => {
   const Routes = renderRoutes(routes);    // 把routes配置转换成组件element形式
@@ -21,7 +22,7 @@ const renderer = (req, store) => {
   // initStateScript 必须放在前面！！要先赋值给window.INITIAL_STATE,然后再hydration的时候会创建新的store，然后用window.INITIAL_STATE当做初始值
   const initStateScript = `
     <script>
-      window.INITIAL_STATE = ${JSON.stringify(initState)}
+      window.INITIAL_STATE = ${serialize(initState)}
     </script>
   `;
   const hydrationScript = '<script src="client.bundle.js"></script>';

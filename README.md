@@ -231,7 +231,7 @@ export default [{
 
 `Warning: Did not expect server HTML to contain a <li> in <ul>.`
 
-这是因为客户端在初始状态下是没有数据的，在渲染组件的时候生成的是空ul。但是服务端是现货区数据再渲染组件，所以初次渲染生成的是有li的ul。hydrate的时候发现两者不一样，所以给出警告。
+这是因为客户端在初始状态下是没有数据的，初次渲染的时候就只有空的ul。但是服务端是先获取数据再渲染组件，所以初次渲染生成的是有li的ul。hydrate的时候发现两者不一样，所以给出警告。
 
 **解决办法**：
 让服务器获取到的数据回填给客户端，让客户端拥有初始数据，以实现两端同步。
@@ -294,4 +294,30 @@ app.get('*', async (req, res) => {
     res.send(renderer(req, store));
   });
 });
+```
+
+## 8) 防止XSS攻击
+如果返回的结果是这样,存储在store中
+```ts
+const response = {
+  data: [
+    {
+      id: 1,
+      name: "</script><script>alert(1)</script>"
+    }
+  ]
+};
+```
+执行的时候就发现在浏览器弹出了alert(1)
+
+为了防止XSS，我们需要用到转译，把恶意代码sanitize一下。可以直接用到这个库，用serialize()代替JSON.stringify()
+```ts
+import serialize from 'serialize-javascript';
+...
+
+const initStateScript = `
+  <script>
+    window.INITIAL_STATE = ${serialize(initState)}
+  </script>
+`;
 ```
