@@ -1,5 +1,13 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import Home from '../share/pages/Home';
+import { BrowserRouter } from "react-router-dom";
+import { renderRoutes } from "react-router-config";
+import routes from "../share/routes";
 
-ReactDOM.hydrate(<Home />, document.getElementById('root'));
+const Routes = renderRoutes(routes);
+const App = () => (
+  <BrowserRouter>
+    { Routes }
+  </BrowserRouter>
+);
+ReactDOM.hydrate(<App />, document.getElementById('root'));
