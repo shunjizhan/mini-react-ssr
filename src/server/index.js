@@ -18,6 +18,7 @@ app.get('/', (req, res) => {
       </head>
       <body>
         <div id="root">${content}</div>
+        <script src="client.bundle.js"></script>
       </body>
     </html>
   `);

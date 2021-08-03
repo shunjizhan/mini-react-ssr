@@ -8,7 +8,8 @@
   "scripts": {
     "dev": "npm-run-all --parallel dev:*",
     "dev:server-run": "nodemon --watch dist/ --exec \"node dist/server.bundle.js\"",
-    "dev:server-build": "webpack --config webpack.server.js --watch"
+    "dev:server-build": "webpack --config webpack.server.js --watch",
+    "dev:client-build": "webpack --config webpack.client.js --watch"
   },
     "dependencies": {
     "@babel/cli": "^7.10.3",
