@@ -140,3 +140,46 @@ Routes是组件element形式，而不是一个class或者函数，它编译过�
 
 **注意2**
 这个时候访问/list会发现list page一闪而过，又回到了home。因为我们还没处理客户端注水，之前的注水渲染了home，所以会跳回去。
+
+## 5) 客户端路由
+客户端路由其实很直接，就是把客户端代码包装进Router，然后把routes渲染成element放进去就行了。
+```tsx
+// src/client/index.js
+const Routes = renderRoutes(routes);
+const App = () => (
+  <BrowserRouter>
+    { Routes }
+  </BrowserRouter>
+);
+ReactDOM.hydrate(<App />, document.getElementById('root'));
+```
+
+## 6) 客户端Redux
+客户端也就是正常创建一个redux结构（reducer和actions），然后把App包装进一个Provider里面。因为客户端本身就是这么做的，所以也没什么特别不一样的。
+
+```tsx
+const store = createStore(reducer, {}, applyMiddleware(thunk));
+const Routes = renderRoutes(routes);
+
+const App = () => (
+  <Provider store={ store }>
+    <BrowserRouter>
+      { Routes }
+    </BrowserRouter>
+  </Provider>
+);
+```
+
+**注意**
+浏览器原生是不支持异步函数的，需要在webpack里面要给babel配置一个polyfill就可以了。
+```ts
+presets: [
+  [
+    "@babel/preset-env",
+    {
+      useBuiltIns: "usage"    // polyfill异步执行的代码
+    }
+  ],
+  "@babel/preset-react"
+]
+```

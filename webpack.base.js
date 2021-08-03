@@ -13,7 +13,7 @@ module.exports = {
               [
                 "@babel/preset-env",
                 {
-                  useBuiltIns: "usage"
+                  useBuiltIns: "usage"    // polyfill异步执行的代码
                 }
               ],
               "@babel/preset-react"
