@@ -79,6 +79,7 @@ app.get('*', (req, res) => {
 renderer用到了两个helper `renderRoutes` 和`StaticRouter`实现,拿到path以后把path传进StaticRouter里面，渲染出对应的界面。renderRoutes则是把路由配置渲染成react element形式，才能直接用。
 
 ```tsx
+// src.server.renderer.js
 import { renderRoutes } from 'react-router-config';
 import { StaticRouter } from 'react-router-dom';
 import routes from '../share/routes';
@@ -153,11 +154,11 @@ const App = () => (
 );
 ReactDOM.hydrate(<App />, document.getElementById('root'));
 ```
-
 ## 6) 客户端Redux
 客户端也就是正常创建一个redux结构（reducer和actions），然后把App包装进一个Provider里面。因为客户端本身就是这么做的，所以也没什么特别不一样的。
 
 ```tsx
+// src/client/index.js
 const store = createStore(reducer, {}, applyMiddleware(thunk));
 const Routes = renderRoutes(routes);
 
@@ -182,4 +183,115 @@ presets: [
   ],
   "@babel/preset-react"
 ]
+```
+
+## 7) 服务端Redux
+这一点是SSR最复杂的一点，主要的难点就是SSR是没有浏览器环境的，不会调用js和生命周期之类的函数，它返回的是一个html+js的形式。所以客户端获取初次渲染的数据的函数是不会被调用的(比如componentDidMount()和useEffect里面获取的数据，在服务端是获取不到的），所以我们要在服务端单独加一层代码来处理初次渲染的数据，代替这些获取数据的生命周期函数来处理initial data。
+
+### 设置redux
+我们在收到请求的时候可以创建的一个store，然后传给renderer处理，renderer就可以跟客户端渲染一样，把App包装进一个有store的Provider里面。
+
+### 服务端给store拿数据
+上一步会发现有这样有一个问题，就是初次渲染的时候，服务端创建的store里面是空的，因为在List组件里面的副作用是组件挂载之后，由浏览器触发js来触发的。但是服务器node里面是不会触发的（就像不会触发event handler一样）。
+```ts
+// src/share/pages/List.js
+
+// 这是在组件挂载之后才会触发的，所以服务端渲染返回的html里面是不会触发的。
+useEffect(() => {
+  dispatch(fetchUser());
+}, []);
+```
+
+**解决办法**：
+本来这些`拿数据的副作用`是在客户端浏览器通过js去调用的，那我们现在要从服务端让node直接调用它。
+所以我们就把这些需要`拿数据的副作用`单独设置成一个函数`loadData()`，然后在服务端渲染的时候，在服务端调用，并且装进store里面。
+
+简单来讲，就是把初次渲染时候，浏览器需要调用的副作用，都交给服务端来处理。
+
+具体怎么把`loadData()` 传给服务端呢？我们可以把它放到路由的数据里面，这样服务端拿路由的时候就顺便这写函数拿到了。
+
+```ts
+// src/share/routes.js
+
+import List, { loadData } from '../share/pages/List';
+
+export default [{
+  path: '/',
+  component: Home,
+  exact: true
+}, {
+  path: '/list',
+  component: List,
+  loadData,       // <== 把副作用函数传进来
+}]
+```
+
+### 服务端和客户端同步
+上一步做完，还会有最后一个问题，/List会报错
+
+`Warning: Did not expect server HTML to contain a <li> in <ul>.`
+
+这是因为客户端在初始状态下是没有数据的，在渲染组件的时候生成的是空ul。但是服务端是现货区数据再渲染组件，所以初次渲染生成的是有li的ul。hydrate的时候发现两者不一样，所以给出警告。
+
+**解决办法**：
+让服务器获取到的数据回填给客户端，让客户端拥有初始数据，以实现两端同步。
+
+具体实现：首先在服务端的renderer里给html加上另一个script，这个script把初始状态保存到`window.INITIAL_STATE`里面。
+
+```ts
+// src.server.renderer.js
+
+// initStateScript 必须放在前面！！要先赋值给window.INITIAL_STATE,然后再hydration的时候会创建新的store，然后用window.INITIAL_STATE当做初始值
+const initStateScript = `
+  <script>
+    window.INITIAL_STATE = ${JSON.stringify(initState)}
+  </script>
+`;
+const hydrationScript = '<script src="client.bundle.js"></script>';
+
+return `
+  ...
+    <body>
+      <div id="root">${content}</div>
+      ${initStateScript}
+      ${hydrationScript}
+    </body>
+  ...
+`
+```
+
+然后hydration的之前，就可以通过`window.INITIAL_STATE`拿到store的初始值，当做创建client store的初始值，这样就保证了和服务端的store初始state的同步。
+
+```tsx
+// src/client/index.js
+
+const init_state_from_SSR = window.INITIAL_STATE;
+const store = createStore(reducer, init_state_from_SSR, applyMiddleware(thunk));
+
+const App = () => (
+  <Provider store={ store }>
+    ...
+  </Provider>
+);
+
+ReactDOM.hydrate(<App />, document.getElementById('root'));
+```
+
+在server里面也要稍微修改，因为现在服务端需要调用异步副作用代码获取数据，那就改成异步代码，等获取好数据了再返回结果给客户端。
+
+```ts
+app.get('*', async (req, res) => {
+  ...
+
+  // 根据请求地址匹配出要渲染组建的路由信息（这里面存了loadData）
+  const pendingLoads = matchRoutes(routes, req.path).map(({ route }) => {
+    const { loadData } = route;
+    if (loadData) return loadData(store);
+  });
+
+  // 等数据获取好了以后再发送结果给客户端
+  Promise.all(pendingLoads).then(() => {
+    res.send(renderer(req, store));
+  });
+});
 ```

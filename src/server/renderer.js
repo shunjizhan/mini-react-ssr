@@ -3,16 +3,28 @@ import { renderToString } from 'react-dom/server';
 import { renderRoutes } from 'react-router-config';
 import { StaticRouter } from 'react-router-dom';
 import routes from '../share/routes';
+import { Provider } from 'react-redux';
 
-const renderer = req => {
+const renderer = (req, store) => {
   const Routes = renderRoutes(routes);    // 把routes配置转换成组件element形式
-  const content = renderToString(
-    <StaticRouter
-      location={ req.path }
-    >
-      { Routes }
-    </StaticRouter>
+
+  const App = () => (
+    <Provider store={ store }>
+      <StaticRouter location={ req.path }>
+        { Routes }
+      </StaticRouter>
+    </Provider>
   );
+  const content = renderToString(<App/>);
+  const initState = store.getState();
+
+  // initStateScript 必须放在前面！！要先赋值给window.INITIAL_STATE,然后再hydration的时候会创建新的store，然后用window.INITIAL_STATE当做初始值
+  const initStateScript = `
+    <script>
+      window.INITIAL_STATE = ${JSON.stringify(initState)}
+    </script>
+  `;
+  const hydrationScript = '<script src="client.bundle.js"></script>';
 
   return `
     <html>
@@ -21,7 +33,8 @@ const renderer = req => {
       </head>
       <body>
         <div id="root">${content}</div>
-        <script src="client.bundle.js"></script>
+        ${initStateScript}
+        ${hydrationScript}
       </body>
     </html>
   `

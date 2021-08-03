@@ -1,5 +1,5 @@
 import Home from '../share/pages/Home';
-import List from '../share/pages/List';
+import List, { loadData } from '../share/pages/List';
 
 export default [{
   path: '/',
@@ -8,4 +8,5 @@ export default [{
 }, {
   path: '/list',
   component: List,
+  loadData,
 }]
