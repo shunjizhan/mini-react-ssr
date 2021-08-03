@@ -6,6 +6,9 @@
   "author": "Shunji Zhan",
   "license": "MIT",
   "scripts": {
+    "dev": "npm-run-all --parallel dev:*",
+    "dev:server-run": "nodemon --watch dist/ --exec \"node dist/server.bundle.js\"",
+    "dev:server-build": "webpack --config webpack.server.js --watch"
   },
     "dependencies": {
     "@babel/cli": "^7.10.3",
