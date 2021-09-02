@@ -321,3 +321,15 @@ const initStateScript = `
   </script>
 `;
 ```
+
+## 总结
+- 基本结构：
+  - 首先在服务端生成html，然后发回给客户端，并挂上一个注水的script给这个html
+  - 客户端收到html会运行注水script，这script内部调用ReactDOM.hydrate()给客户端注水，激活所有浏览器相关的功能，比如event handler
+- 处理路由：用到一个shared的路由config
+  - 服务端服务器设置，不管什么path，都交给renderer处理。renderer渲染路由config，将app包进StaticRouter路由并设置location跳到相应界面。
+  - 客户端类似，也是将app包进BrowserRouter路由就行了
+- 处理redux
+  - 服务端因为不能运行副作用，比如useEffect中loadData()获取数据，所以要专门把loadData函数通过路由传给express，express直接调用并获取数据，装进redux里面，再渲染页面。同时，为了跟客户端的redux同步，还要多设置一个script，把初始的state保存在window上。其实就是把整个state传过来了。
+  - 客户端直接用传过来的初始state，创建redux，并渲染界面，保证了初始数据的同步。
+- 防止XSS攻击：`window.INITIAL_STATE = ${serialize(initState)}`
